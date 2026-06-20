@@ -96,8 +96,11 @@ class TradingOfficeOrchestrator:
             reports.append(report)
             utterances.append(agent.speak(report, MeetingPhase.REPORT))
 
-        # Phase 3 – DELIBERATION: PM synthesizes key themes
-        deliberation = self._build_deliberation(reports)
+        # Phase 3 & 4 – DECISION (Grok deliberation + final orders)
+        decision = self.portfolio_manager.decide(context, reports)  # type: ignore[attr-defined]
+        deliberation = (
+            decision.deliberation or self._build_deliberation(reports)
+        )
         utterances.append(
             AgentUtterance(
                 agent_name=self.portfolio_manager.name,
@@ -106,9 +109,6 @@ class TradingOfficeOrchestrator:
                 content=deliberation,
             )
         )
-
-        # Phase 4 – DECISION: PM issues final portfolio orders
-        decision = self.portfolio_manager.decide(context, reports)  # type: ignore[attr-defined]
         utterances.append(
             AgentUtterance(
                 agent_name=self.portfolio_manager.name,
@@ -182,16 +182,21 @@ class TradingOfficeOrchestrator:
 
 
 def create_sample_context(meeting_date: date | None = None) -> MeetingContext:
-    """Build a minimal demo context for smoke-testing the orchestrator."""
-    meeting_date = meeting_date or date.today()
-    return MeetingContext(
-        meeting_date=meeting_date,
-        portfolio=[
-            PortfolioPosition("AAPL", shares=2.0, avg_cost=190.0, sector="technology"),
-            PortfolioPosition("MSFT", shares=1.5, avg_cost=420.0, sector="technology"),
-            PortfolioPosition("NVDA", shares=0.5, avg_cost=900.0, sector="semiconductor"),
-        ],
-        cash_balance=150.0,
-        watchlist=["GOOGL", "META", "AMD"],
-        is_first_trading_day_of_month=meeting_date.day <= 7,
-    )
+    """Build meeting context from backtest portfolio and live data feeds."""
+    try:
+        from core.data.context_builder import build_meeting_context
+
+        return build_meeting_context(meeting_date)
+    except Exception:
+        meeting_date = meeting_date or date.today()
+        return MeetingContext(
+            meeting_date=meeting_date,
+            portfolio=[
+                PortfolioPosition("AAPL", shares=2.0, avg_cost=190.0, sector="technology"),
+                PortfolioPosition("MSFT", shares=1.5, avg_cost=420.0, sector="technology"),
+                PortfolioPosition("NVDA", shares=0.5, avg_cost=900.0, sector="semiconductor"),
+            ],
+            cash_balance=150.0,
+            watchlist=["GOOGL", "META", "AMD"],
+            is_first_trading_day_of_month=meeting_date.day <= 7,
+        )

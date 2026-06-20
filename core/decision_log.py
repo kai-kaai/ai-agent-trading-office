@@ -128,7 +128,16 @@ class DecisionLog:
             lines.append("*No trades proposed — maintain current allocation.*")
             lines.append("")
 
+        approval_label = (
+            "Approved"
+            if meeting_record.decision.approved
+            else "Pending human review"
+        )
         lines.extend([
+            "## Approval",
+            f"**Status:** {approval_label}",
+            f"**Decision source:** {meeting_record.decision.decision_source}",
+            "",
             "## Reasoning",
             "",
         ])
@@ -157,6 +166,82 @@ class DecisionLog:
     def load_meeting(self, filename: str) -> dict[str, Any]:
         """Load a single meeting JSON file by filename."""
         return self._load_entry(filename)
+
+    def update_approval(self, meeting_id: str, approved: bool) -> dict[str, Any] | None:
+        """Set approval status on an existing meeting and refresh its log files."""
+        for index, entry in enumerate(self._entries):
+            if entry.get("meeting_id") != meeting_id:
+                continue
+
+            json_path = self.log_dir / entry["json_file"]
+            data = json.loads(json_path.read_text(encoding="utf-8"))
+            data["decision"]["approved"] = approved
+            data["approval_status"] = "approved" if approved else "rejected"
+            data["approved_at"] = datetime.utcnow().isoformat()
+            json_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            md_path = self.log_dir / entry["md_file"]
+            md_path.write_text(
+                self._markdown_from_payload(data),
+                encoding="utf-8",
+            )
+
+            self._entries[index]["approved"] = approved
+            self._entries[index]["approval_status"] = (
+                "approved" if approved else "rejected"
+            )
+            self._save_index()
+            return data
+
+        return None
+
+    def _markdown_from_payload(self, payload: dict[str, Any]) -> str:
+        """Rebuild markdown from a serialized meeting payload."""
+        from core.models import (
+            AgentReport,
+            AgentUtterance,
+            MeetingPhase,
+            MeetingRecord,
+            PortfolioDecision,
+            TradeAction,
+        )
+
+        utterances = []
+        for item in payload.get("utterances", []):
+            utterances.append(
+                AgentUtterance(
+                    agent_name=item["agent_name"],
+                    role=item["role"],
+                    phase=MeetingPhase(item["phase"]),
+                    content=item["content"],
+                )
+            )
+
+        decision_data = payload["decision"]
+        trades = [TradeAction(**trade) for trade in decision_data.get("trades", [])]
+        decision = PortfolioDecision(
+            meeting_date=date.fromisoformat(decision_data["meeting_date"]),
+            trades=trades,
+            summary=decision_data["summary"],
+            reasoning=decision_data.get("reasoning", []),
+            agent_reports=[],
+            approved=decision_data.get("approved", False),
+            deliberation=decision_data.get("deliberation"),
+            decision_source=decision_data.get("decision_source", "rule_based"),
+        )
+
+        record = MeetingRecord(
+            meeting_id=payload["meeting_id"],
+            meeting_date=date.fromisoformat(payload["meeting_date"]),
+            participants=payload.get("participants", []),
+            utterances=utterances,
+            meeting_summary=payload.get("meeting_summary", decision.summary),
+            decision=decision,
+        )
+        return self.export_markdown(record)
 
     def _load_index(self) -> list[dict[str, Any]]:
         if not self._index_path.exists():
@@ -202,6 +287,8 @@ class DecisionLog:
             "summary": decision.summary,
             "reasoning": decision.reasoning,
             "approved": decision.approved,
+            "deliberation": decision.deliberation,
+            "decision_source": decision.decision_source,
             "decided_at": decision.decided_at.isoformat(),
             "trades": [asdict(t) for t in decision.trades],
             "agent_reports": [

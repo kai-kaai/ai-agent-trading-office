@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from core.base_agent import BaseAgent
+from core.data.fundamentals import get_fundamental_service
+from core.data.tickers import collect_tickers
 from core.models import (
     AgentReport,
     MeetingContext,
@@ -20,7 +22,14 @@ class FinancialAnalyst(BaseAgent):
     - Highlight fundamentally strong or weak names in the watchlist/portfolio
     """
 
-    DEFAULT_METRICS = ("eps", "revenue_growth", "debt_ratio", "profit_margin")
+    DEFAULT_METRICS = (
+        "pe_ratio",
+        "fcf_yield",
+        "operating_margin",
+        "return_on_common",
+        "revenue_b",
+        "market_cap_b",
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -31,21 +40,22 @@ class FinancialAnalyst(BaseAgent):
                 "based on EPS, revenue growth, debt ratio, and profit margin."
             ),
         )
+        self._fundamentals = get_fundamental_service()
 
     def analyze(self, context: MeetingContext) -> AgentReport:
-        """Score portfolio holdings and watchlist tickers.
-
-        Phase 1 uses placeholder logic. Real financial data will be wired in
-        during the backtest integration step.
-        """
-        tickers = self._collect_tickers(context)
-        stock_scores = [self._score_ticker(ticker, context) for ticker in tickers]
+        """Score portfolio holdings and watchlist tickers from CSV fundamentals."""
+        tickers = collect_tickers(context)
+        stock_scores = [
+            self._score_ticker(ticker, context.meeting_date) for ticker in tickers
+        ]
 
         strong = [s for s in stock_scores if s.score >= 70]
         weak = [s for s in stock_scores if s.score < 50]
+        with_data = [s for s in stock_scores if s.metrics.get("data_source") == "tech_titans_csv"]
 
         key_points = [
             f"Reviewed {len(tickers)} tickers across portfolio and watchlist.",
+            f"{len(with_data)} names scored from Tech Titans CSV fundamentals.",
             f"{len(strong)} names rated fundamentally strong (score ≥ 70).",
             f"{len(weak)} names flagged as weak (score < 50).",
         ]
@@ -55,6 +65,12 @@ class FinancialAnalyst(BaseAgent):
             warnings.append(
                 "Weak fundamentals detected: "
                 + ", ".join(s.ticker for s in weak[:5])
+            )
+
+        missing = [s.ticker for s in stock_scores if s.metrics.get("data_source") != "tech_titans_csv"]
+        if missing:
+            warnings.append(
+                "No CSV fundamentals for: " + ", ".join(missing[:5])
             )
 
         summary = (
@@ -67,46 +83,37 @@ class FinancialAnalyst(BaseAgent):
             stock_scores=stock_scores,
             key_points=key_points,
             warnings=warnings,
-            metadata={"metrics_reviewed": list(self.DEFAULT_METRICS)},
+            metadata={
+                "metrics_reviewed": list(self.DEFAULT_METRICS),
+                "data_source": "tech_titans_csv",
+            },
         )
 
-    def _collect_tickers(self, context: MeetingContext) -> list[str]:
-        """Merge portfolio tickers and watchlist, preserving order."""
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for ticker in [p.ticker for p in context.portfolio] + context.watchlist:
-            upper = ticker.upper()
-            if upper not in seen:
-                seen.add(upper)
-                ordered.append(upper)
-        return ordered
+    def _score_ticker(self, ticker: str, on_date: object) -> StockScore:
+        """Score one ticker using Tech Titans CSV metrics."""
+        score, snap = self._fundamentals.score(ticker, on_date)  # type: ignore[arg-type]
 
-    def _score_ticker(self, ticker: str, context: MeetingContext) -> StockScore:
-        """Produce a placeholder fundamental score for one ticker.
+        if snap is None:
+            return StockScore(
+                ticker=ticker,
+                score=score,
+                recommendation=self._score_to_recommendation(score),
+                rationale=f"{ticker}: no Tech Titans CSV snapshot for this month.",
+                metrics={"data_source": "missing"},
+            )
 
-        Replace with real data feeds (e.g. yfinance, SEC filings) in Phase 2.
-        """
-        in_portfolio = any(p.ticker.upper() == ticker for p in context.portfolio)
-        base_score = 62.0 if in_portfolio else 55.0
-
-        metrics = {
-            "eps": None,
-            "revenue_growth": None,
-            "debt_ratio": None,
-            "profit_margin": None,
-            "data_source": "placeholder",
-        }
-
-        recommendation = self._score_to_recommendation(base_score)
+        metrics = self._fundamentals.metrics_dict(snap)
         rationale = (
-            f"{ticker}: placeholder fundamental score pending live data. "
-            f"{'Currently held in portfolio.' if in_portfolio else 'On watchlist.'}"
+            f"{ticker}: PE {snap.pe_ratio or 'n/a'}x, "
+            f"FCF yield {(snap.fcf_yield or 0) * 100:.1f}%, "
+            f"margin {(snap.operating_margin or 0) * 100:.1f}% "
+            f"→ score {score:.0f}/100."
         )
 
         return StockScore(
             ticker=ticker,
-            score=base_score,
-            recommendation=recommendation,
+            score=score,
+            recommendation=self._score_to_recommendation(score),
             rationale=rationale,
             metrics=metrics,
         )

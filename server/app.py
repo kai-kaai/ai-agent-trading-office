@@ -6,10 +6,11 @@ import json
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 # Ensure project root is on sys.path when running as `python server/app.py`
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -17,9 +18,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from agents.registry import AGENT_REGISTRY, list_roles  # noqa: E402
+from backtest.context import get_cached_comparison, run_and_cache  # noqa: E402
+from backtest.engine import DEFAULT_MONTHS  # noqa: E402
+from core.llm.client import get_llm_status  # noqa: E402
 from core.decision_log import DecisionLog  # noqa: E402
+from server.pending_meeting import clear_pending, get_pending  # noqa: E402
 from server.pixel_bridge import AGENT_DESK_CONFIG  # noqa: E402
 from server.ws_manager import ConnectionManager  # noqa: E402
+
+
+class ApprovalRequest(BaseModel):
+    approved: bool
 
 app = FastAPI(
     title="AI Agent Trading Office",
@@ -85,13 +94,80 @@ async def run_meeting() -> dict:
     return await manager.run_meeting()
 
 
+@app.get("/api/meetings/pending")
+async def pending_meeting() -> dict:
+    """Return the latest meeting awaiting human approval."""
+    pending = get_pending()
+    if pending is None:
+        return {"pending": False}
+    return {
+        "pending": True,
+        "meeting_id": pending.meeting_id,
+        "json_file": pending.json_file,
+        "summary": pending.summary,
+        "trade_count": pending.trade_count,
+        "trades": pending.trades,
+        "decision_source": pending.decision_source,
+        "approved": pending.approved,
+    }
+
+
+@app.post("/api/meetings/{meeting_id}/approve")
+async def approve_meeting(meeting_id: str, body: ApprovalRequest) -> dict:
+    """Approve or reject a proposed meeting decision (semi-auto mode)."""
+    updated = decision_log.update_approval(meeting_id, approved=body.approved)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    pending = get_pending()
+    if pending and pending.meeting_id == meeting_id:
+        clear_pending()
+
+    await manager.broadcast(
+        {
+            "type": "tradingMeetingEvent",
+            "event": "decision_approved",
+            "payload": {
+                "meeting_id": meeting_id,
+                "approved": body.approved,
+                "status": "approved" if body.approved else "rejected",
+            },
+        }
+    )
+
+    return {
+        "ok": True,
+        "meeting_id": meeting_id,
+        "approved": body.approved,
+        "approval_status": "approved" if body.approved else "rejected",
+    }
+
+
 @app.get("/api/status")
 async def office_status() -> dict:
     return {
         "connected_clients": len(manager.active),
         "meeting_running": manager.meeting_running,
         "agent_roles": list_roles(),
+        "semi_auto": True,
+        **get_llm_status(),
     }
+
+
+@app.post("/api/backtest/run")
+async def run_backtest(months: int = DEFAULT_MONTHS) -> dict:
+    """Run AI Agent vs Tech Titans backtest and return comparison metrics."""
+    comparison = run_and_cache(months=months)
+    return comparison.to_dict()
+
+
+@app.get("/api/backtest/latest")
+async def latest_backtest() -> dict:
+    """Return cached backtest results or run a default 6-month simulation."""
+    comparison = get_cached_comparison()
+    if comparison is None:
+        comparison = run_and_cache(months=DEFAULT_MONTHS)
+    return comparison.to_dict()
 
 
 # Serve built React dashboard in production

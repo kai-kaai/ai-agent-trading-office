@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentState, ServerMessage, TranscriptEntry } from "../types";
+import type { AgentState, PendingMeeting, ProposedTrade, ServerMessage, TranscriptEntry } from "../types";
 
 const PALETTES = [
   "#4ade80",
@@ -17,6 +17,30 @@ export function usePixelAgentsWs() {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [meetingSummary, setMeetingSummary] = useState<string | null>(null);
   const [meetingRunning, setMeetingRunning] = useState(false);
+  const [pendingMeeting, setPendingMeeting] = useState<PendingMeeting | null>(null);
+  const [llmEnabled, setLlmEnabled] = useState(false);
+  const [llmProvider, setLlmProvider] = useState("none");
+  const [llmModel, setLlmModel] = useState("");
+
+  const loadPending = useCallback(async () => {
+    try {
+      const res = await fetch("/api/meetings/pending");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.pending) {
+        setPendingMeeting({
+          meetingId: data.meeting_id,
+          summary: data.summary,
+          trades: data.trades ?? [],
+          tradeCount: data.trade_count ?? 0,
+          decisionSource: data.decision_source ?? "unknown",
+          approvalStatus: data.approved ? "approved" : "pending",
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const handleMessage = useCallback((msg: ServerMessage) => {
     switch (msg.type) {
@@ -54,6 +78,7 @@ export function usePixelAgentsWs() {
           setMeetingRunning(true);
           setTranscript([]);
           setMeetingSummary(null);
+          setPendingMeeting(null);
         } else if (event === "utterance") {
           setTranscript((prev) => [
             ...prev,
@@ -68,6 +93,24 @@ export function usePixelAgentsWs() {
         } else if (event === "meeting_completed") {
           setMeetingRunning(false);
           setMeetingSummary(payload.summary as string);
+          setPendingMeeting({
+            meetingId: payload.meeting_id as string,
+            summary: payload.summary as string,
+            trades: (payload.trades as ProposedTrade[]) ?? [],
+            tradeCount: (payload.trade_count as number) ?? 0,
+            decisionSource: (payload.decision_source as string) ?? "unknown",
+            approvalStatus: "pending",
+          });
+        } else if (event === "decision_approved") {
+          const approved = payload.approved as boolean;
+          setPendingMeeting((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  approvalStatus: approved ? "approved" : "rejected",
+                }
+              : prev,
+          );
         }
         break;
       }
@@ -102,9 +145,44 @@ export function usePixelAgentsWs() {
     return () => ws.close();
   }, [handleMessage]);
 
+  useEffect(() => {
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((data) => {
+        setLlmEnabled(Boolean(data.llm_enabled ?? data.grok_enabled));
+        setLlmProvider(String(data.llm_provider ?? "none"));
+        setLlmModel(String(data.llm_model ?? data.grok_model ?? ""));
+      })
+      .catch(() => {
+        setLlmEnabled(false);
+        setLlmProvider("none");
+        setLlmModel("");
+      });
+    void loadPending();
+  }, [loadPending]);
+
   const runMeeting = useCallback(async () => {
     const res = await fetch("/api/meetings/run", { method: "POST" });
     return res.json();
+  }, []);
+
+  const submitApproval = useCallback(async (meetingId: string, approved: boolean) => {
+    const res = await fetch(`/api/meetings/${meetingId}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approved }),
+    });
+    if (!res.ok) throw new Error(`Approval failed (${res.status})`);
+    const data = await res.json();
+    setPendingMeeting((prev) =>
+      prev
+        ? {
+            ...prev,
+            approvalStatus: data.approved ? "approved" : "rejected",
+          }
+        : prev,
+    );
+    return data;
   }, []);
 
   return {
@@ -113,7 +191,12 @@ export function usePixelAgentsWs() {
     transcript,
     meetingSummary,
     meetingRunning,
+    pendingMeeting,
+    llmEnabled,
+    llmProvider,
+    llmModel,
     runMeeting,
+    submitApproval,
     palettes: PALETTES,
   };
 }

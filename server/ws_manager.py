@@ -71,7 +71,21 @@ class ConnectionManager:
                 result = await runner.run()
                 return {
                     "ok": True,
+                    "meeting_id": result.meeting_record.meeting_id,
                     "summary": result.decision.summary,
+                    "trade_count": len(result.decision.trades),
+                    "trades": [
+                        {
+                            "ticker": t.ticker,
+                            "action": t.action,
+                            "shares": t.shares,
+                            "rationale": t.rationale,
+                        }
+                        for t in result.decision.trades
+                    ],
+                    "decision_source": result.decision.decision_source,
+                    "approved": result.decision.approved,
+                    "requires_approval": True,
                     "json_log": result.json_log_path,
                     "md_log": result.md_log_path,
                     "duration_ms": result.duration_ms,

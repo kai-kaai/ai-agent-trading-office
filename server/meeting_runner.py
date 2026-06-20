@@ -48,10 +48,15 @@ class LiveMeetingRunner:
     async def run(
         self, context: MeetingContext | None = None
     ) -> MeetingResult:
-        from core.orchestrator import create_sample_context
-
         if context is None:
-            context = create_sample_context()
+            try:
+                from core.data.context_builder import build_meeting_context
+
+                context = build_meeting_context()
+            except Exception:
+                from core.orchestrator import create_sample_context
+
+                context = create_sample_context()
 
         start = time.perf_counter()
         pm = PortfolioManager()
@@ -117,14 +122,21 @@ class LiveMeetingRunner:
                 )
             )
 
-        # DELIBERATION
+        # DELIBERATION + DECISION (Grok-assisted when configured)
         agent_id = self.bridge.resolve_agent_id(name=pm.name)
+        tool_label = (
+            "LLM deliberating team reports…"
+            if pm._llm and pm._llm.available  # noqa: SLF001
+            else "Synthesizing team reports…"
+        )
         tool_id = f"delib-{uuid.uuid4().hex[:8]}"
         await self.emit(self.bridge.agent_status(agent_id, "active"))
-        await self.emit(
-            self.bridge.agent_tool_start(agent_id, tool_id, "Synthesizing team reports…")
+        await self.emit(self.bridge.agent_tool_start(agent_id, tool_id, tool_label))
+        decision = pm.decide(context, reports)
+        deliberation = (
+            decision.deliberation
+            or TradingOfficeOrchestrator._build_deliberation(reports)
         )
-        deliberation = TradingOfficeOrchestrator._build_deliberation(reports)
         utterances.append(
             AgentUtterance(
                 agent_name=pm.name,
@@ -145,12 +157,10 @@ class LiveMeetingRunner:
             )
         )
 
-        # DECISION
         tool_id = f"decide-{uuid.uuid4().hex[:8]}"
         await self.emit(
             self.bridge.agent_tool_start(agent_id, tool_id, "Issuing portfolio decision…")
         )
-        decision = pm.decide(context, reports)
         utterances.append(
             AgentUtterance(
                 agent_name=pm.name,
@@ -163,8 +173,9 @@ class LiveMeetingRunner:
         await self.emit(self.bridge.agent_tools_clear(agent_id))
         await self.emit(self.bridge.agent_status(agent_id, "waiting"))
 
+        meeting_id = str(uuid.uuid4())
         meeting_record = MeetingRecord(
-            meeting_id=str(uuid.uuid4()),
+            meeting_id=meeting_id,
             meeting_date=context.meeting_date,
             participants=participants,
             utterances=utterances,
@@ -185,15 +196,41 @@ class LiveMeetingRunner:
             participants=participants,
         )
 
+        trade_payload = [
+            {
+                "ticker": t.ticker,
+                "action": t.action,
+                "shares": t.shares,
+                "rationale": t.rationale,
+            }
+            for t in decision.trades
+        ]
+
+        from server.pending_meeting import PendingMeeting, set_pending
+
+        set_pending(
+            PendingMeeting(
+                meeting_id=meeting_id,
+                json_file=json_path.name,
+                summary=decision.summary,
+                trade_count=len(decision.trades),
+                trades=trade_payload,
+                decision_source=decision.decision_source,
+                approved=False,
+            )
+        )
+
         await self.emit(
             self.bridge.trading_meeting_event(
                 "meeting_completed",
                 {
+                    "meeting_id": meeting_id,
                     "summary": decision.summary,
-                    "trades": [
-                        {"ticker": t.ticker, "action": t.action, "shares": t.shares}
-                        for t in decision.trades
-                    ],
+                    "trades": trade_payload,
+                    "trade_count": len(decision.trades),
+                    "decision_source": decision.decision_source,
+                    "approved": False,
+                    "requires_approval": True,
                     "json_log": str(json_path),
                     "md_log": str(md_path),
                     "duration_ms": result.duration_ms,

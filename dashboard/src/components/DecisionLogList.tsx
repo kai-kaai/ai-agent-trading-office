@@ -41,7 +41,12 @@ export function DecisionLogList() {
                 <span className="meeting-date">{m.meeting_date}</span>
                 <span className="meeting-summary">{m.summary}</span>
                 <span className="meeting-meta">
-                  {m.trade_count} trade(s) · {m.approved ? "approved" : "pending"}
+                  {m.trade_count} trade(s) ·{" "}
+                  {m.approval_status === "rejected"
+                    ? "rejected"
+                    : m.approved
+                      ? "approved"
+                      : "pending review"}
                 </span>
               </button>
             </li>

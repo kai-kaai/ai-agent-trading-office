@@ -121,6 +121,8 @@ class PortfolioDecision:
     reasoning: list[str]
     agent_reports: list[AgentReport]
     approved: bool = False
+    deliberation: str | None = None
+    decision_source: str = "rule_based"
     decided_at: datetime = field(default_factory=datetime.utcnow)
 
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from core.base_agent import BaseAgent
+from core.data.market_data import get_market_data_service
+from core.data.tickers import collect_tickers
 from core.models import (
     AgentReport,
     MeetingContext,
@@ -20,7 +22,7 @@ class MarketResearcher(BaseAgent):
     - Evaluate entry/exit timing
     """
 
-    INDICATORS = ("rsi", "macd", "sma_50", "sma_200", "volume_trend")
+    INDICATORS = ("rsi_14", "sma_50", "sma_200", "return_1m", "pct_from_52w_high")
 
     def __init__(self) -> None:
         super().__init__(
@@ -31,24 +33,22 @@ class MarketResearcher(BaseAgent):
                 "conditions to assess optimal entry and exit timing."
             ),
         )
+        self._market = get_market_data_service()
 
     def analyze(self, context: MeetingContext) -> AgentReport:
-        """Assess technical setup for portfolio and watchlist tickers.
-
-        Phase 1 uses placeholder indicators. Real price data will be wired in
-        during the backtest integration step.
-        """
-        tickers = self._collect_tickers(context)
-        stock_scores = [self._score_technicals(ticker, context) for ticker in tickers]
+        """Assess technical setup using yfinance price history."""
+        tickers = collect_tickers(context)
+        stock_scores = [self._score_technicals(ticker) for ticker in tickers]
 
         bullish = [s for s in stock_scores if s.score >= 65]
         bearish = [s for s in stock_scores if s.score < 45]
+        live = [s for s in stock_scores if s.metrics.get("data_source") == "yfinance"]
 
-        market_condition = context.extra.get("market_condition", "neutral")
+        market_condition = self._market.get_market_condition(tickers)
         sector_rotation = context.extra.get("sector_rotation", "technology")
 
         key_points = [
-            f"Technical review for {len(tickers)} tickers.",
+            f"Technical review for {len(tickers)} tickers ({len(live)} live via yfinance).",
             f"{len(bullish)} names with bullish setup, {len(bearish)} bearish.",
             f"Overall market condition: {market_condition}.",
             f"Sector rotation signal: {sector_rotation}.",
@@ -73,40 +73,35 @@ class MarketResearcher(BaseAgent):
             metadata={
                 "indicators_reviewed": list(self.INDICATORS),
                 "market_condition": market_condition,
-                "data_source": "placeholder",
+                "data_source": "yfinance",
             },
         )
 
-    def _collect_tickers(self, context: MeetingContext) -> list[str]:
-        """Merge portfolio tickers and watchlist, preserving order."""
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for ticker in [p.ticker for p in context.portfolio] + context.watchlist:
-            upper = ticker.upper()
-            if upper not in seen:
-                seen.add(upper)
-                ordered.append(upper)
-        return ordered
+    def _score_technicals(self, ticker: str) -> StockScore:
+        """Score one ticker from live technical indicators."""
+        tech = self._market.get_technicals(ticker)
 
-    def _score_technicals(self, ticker: str, context: MeetingContext) -> StockScore:
-        """Produce a placeholder technical score for one ticker."""
-        in_portfolio = any(p.ticker.upper() == ticker for p in context.portfolio)
-        base_score = 60.0 if in_portfolio else 54.0
-        trend = "uptrend" if base_score >= 58 else "sideways"
+        rationale = (
+            f"{ticker}: trend={tech.trend}, RSI {tech.rsi_14 or 'n/a'}, "
+            f"1M return {(tech.return_1m or 0) * 100:+.1f}% "
+            f"→ score {tech.score:.0f}/100."
+        )
 
         return StockScore(
             ticker=ticker,
-            score=base_score,
-            recommendation=self._technical_to_recommendation(base_score),
-            rationale=(
-                f"{ticker}: placeholder technical score, trend={trend}. "
-                "Live price data pending integration."
-            ),
+            score=tech.score,
+            recommendation=self._technical_to_recommendation(tech.score),
+            rationale=rationale,
             metrics={
-                "trend": trend,
-                "rsi": None,
-                "macd": None,
-                "data_source": "placeholder",
+                "trend": tech.trend,
+                "rsi_14": tech.rsi_14,
+                "sma_50": tech.sma_50,
+                "sma_200": tech.sma_200,
+                "return_1m": tech.return_1m,
+                "return_3m": tech.return_3m,
+                "pct_from_52w_high": tech.pct_from_52w_high,
+                "price": tech.price,
+                "data_source": tech.data_source,
             },
         )
 

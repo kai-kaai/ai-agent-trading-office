@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from core.base_agent import BaseAgent
+from core.data.news import get_news_service
+from core.data.tickers import collect_tickers
 from core.models import (
     AgentReport,
     MeetingContext,
@@ -31,19 +33,22 @@ class NewsResearcher(BaseAgent):
                 "and highlights events that could affect portfolio positions."
             ),
         )
+        self._news = get_news_service()
 
     def analyze(self, context: MeetingContext) -> AgentReport:
-        """Assess news sentiment for portfolio and watchlist tickers.
-
-        Phase 1 uses placeholder sentiment. Real news feeds will be wired in
-        when the Grok API and data sources are integrated.
-        """
-        tickers = self._collect_tickers(context)
-        stock_scores = [self._score_sentiment(ticker, context) for ticker in tickers]
+        """Assess news sentiment from yfinance headlines and momentum fallback."""
+        tickers = collect_tickers(context)
+        stock_scores = [
+            self._score_sentiment(ticker, context) for ticker in tickers
+        ]
 
         positive = [s for s in stock_scores if s.score >= 65]
         negative = [s for s in stock_scores if s.score < 45]
-        events = context.extra.get("news_events", [])
+        all_events: list[dict[str, str]] = []
+        for score in stock_scores:
+            events = score.metrics.get("events", [])
+            if isinstance(events, list):
+                all_events.extend(events)
 
         key_points = [
             f"Scanned news sentiment for {len(tickers)} tickers.",
@@ -51,8 +56,8 @@ class NewsResearcher(BaseAgent):
             f"{len(negative)} with negative sentiment.",
         ]
 
-        if isinstance(events, list) and events:
-            key_points.append(f"{len(events)} material event(s) flagged this week.")
+        if all_events:
+            key_points.append(f"{len(all_events)} headline(s) reviewed this week.")
 
         warnings = []
         if negative:
@@ -71,40 +76,35 @@ class NewsResearcher(BaseAgent):
             stock_scores=stock_scores,
             key_points=key_points,
             warnings=warnings,
-            metadata={"data_source": "placeholder", "events_reviewed": len(events)},
+            metadata={
+                "data_source": "yfinance_news",
+                "events_reviewed": len(all_events),
+                "news_events": all_events[:10],
+            },
         )
 
-    def _collect_tickers(self, context: MeetingContext) -> list[str]:
-        """Merge portfolio tickers and watchlist, preserving order."""
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for ticker in [p.ticker for p in context.portfolio] + context.watchlist:
-            upper = ticker.upper()
-            if upper not in seen:
-                seen.add(upper)
-                ordered.append(upper)
-        return ordered
-
     def _score_sentiment(self, ticker: str, context: MeetingContext) -> StockScore:
-        """Produce a placeholder news-sentiment score for one ticker."""
-        in_portfolio = any(p.ticker.upper() == ticker for p in context.portfolio)
-        base_score = 58.0 if in_portfolio else 52.0
+        """Score one ticker from yfinance news or price-momentum fallback."""
+        snap = self._news.analyze(ticker, context.meeting_date)
 
-        sentiment = "neutral"
-        if base_score >= 60:
-            sentiment = "positive"
-        elif base_score < 50:
-            sentiment = "negative"
+        headline = snap.top_headline or "No recent headlines"
+        rationale = (
+            f"{ticker}: {snap.sentiment} sentiment ({snap.headline_count} headlines). "
+            f"Top: {headline[:80]}"
+        )
 
         return StockScore(
             ticker=ticker,
-            score=base_score,
-            recommendation=self._sentiment_to_recommendation(base_score),
-            rationale=(
-                f"{ticker}: placeholder news sentiment ({sentiment}). "
-                "Live news feed pending integration."
-            ),
-            metrics={"sentiment": sentiment, "data_source": "placeholder"},
+            score=snap.score,
+            recommendation=self._sentiment_to_recommendation(snap.score),
+            rationale=rationale,
+            metrics={
+                "sentiment": snap.sentiment,
+                "headline_count": snap.headline_count,
+                "top_headline": snap.top_headline,
+                "events": snap.events,
+                "data_source": snap.data_source,
+            },
         )
 
     @staticmethod

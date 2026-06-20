@@ -23,7 +23,24 @@ export interface MeetingIndexEntry {
   summary: string;
   trade_count: number;
   approved: boolean;
+  approval_status?: "approved" | "rejected" | "pending";
   recorded_at: string;
+}
+
+export interface ProposedTrade {
+  ticker: string;
+  action: string;
+  shares: number;
+  rationale?: string;
+}
+
+export interface PendingMeeting {
+  meetingId: string;
+  summary: string;
+  trades: ProposedTrade[];
+  tradeCount: number;
+  decisionSource: string;
+  approvalStatus: "pending" | "approved" | "rejected";
 }
 
 export interface TranscriptEntry {

@@ -141,50 +141,73 @@
 - สร้าง `start.sh` สำหรับรันผ่าน terminal (ไม่ต้องใช้ VS Code)
 - ทดสอบเปิด Dashboard ที่ http://127.0.0.1:5173 สำเร็จ
 
-### สถานะ logic ปัจจุบัน
-- Agent ทุกตัวยังใช้ **placeholder scoring** (รอเชื่อมข้อมูลจริง)
-- Portfolio Manager ใช้ **rule-based** ตัดสินใจ (รอ Grok API)
-- ยังไม่มี Backtest Engine
+### Phase 1 — Backtest Engine ✅ (เสร็จ 2026-06-20)
 
-### แผนพัฒนาต่อ (Roadmap) — ทำตามลำดับนี้
-
-> **ครั้งถัดไปที่กลับมาทำ: เริ่มจาก Phase 1**
-
-#### Phase 1 — Backtest Engine (สำคัญที่สุด) ← เริ่มที่นี่
 เป้าหมาย: จำลองพอร์ตตามกฎ TRADING-RULES.md แล้วเทียบกับ Tech Titans
 
-- [ ] สร้างโฟลเดอร์ `backtest/` — engine จำลองพอร์ต
-  - เงินทุน 305 USD วันที่ 1 ของเดือน
-  - ปรับพอร์ตได้ทุกสัปดาห์ (ใช้เงินสด + เงินจากขายเท่านั้น ระหว่างเดือน)
-  - เทรดเฉพาะหุ้นเทค (NYSE + Nasdaq)
-- [ ] โหลดข้อมูล benchmark จาก `data/tech_titans_history_template.csv` (733 แถว)
-- [ ] รัน backtest ย้อนหลัง แล้วคำนวณ return / alpha เทียบ Tech Titans
-- [ ] เชื่อม **Backtester & Evaluator** กับผล backtest จริง
-  - ส่ง `portfolio_return`, `benchmark_return` เข้า `context.extra`
-- [ ] แสดงผลเบื้องต้นบน Dashboard (หรือ terminal report)
+- [x] สร้างโฟลเดอร์ `backtest/` — engine จำลองพอร์ต
+- [x] โหลดข้อมูล benchmark จาก `data/tech_titans_history_template.csv` (733 แถว, 49 เดือน)
+- [x] รัน backtest 6 เดือน คำนวณ return / alpha เทียบ Tech Titans
+- [x] เชื่อม **Backtester & Evaluator** กับผล backtest จริง (`context.extra`)
+- [x] แสดงผลบน Dashboard แท็บ **Backtest** + CLI `python3 -m backtest`
 
-#### Phase 2 — ข้อมูลจริงให้ Agent
-เป้าหมาย: แทน placeholder scoring ด้วยข้อมูลจริง
+**ผล backtest ล่าสุด (ธ.ค. 2025 – พ.ค. 2026):**
+- AI Agent: -3.79% | Tech Titans: -1.36% | Alpha: -2.42%
+- ใช้ market cap จาก CSV เป็น price proxy (offline-friendly)
 
-- [ ] **Financial Analyst** — ใช้ metric จาก CSV (PE, margin, revenue, FCF yield ฯลฯ)
-- [ ] **Market Researcher** — ดึงราคาหุ้น historical (yfinance / API อื่น)
-- [ ] **News Researcher** — ข่าว + sentiment (Grok API หรือ news API)
-- [ ] **Risk Manager** — น้ำหนักพอร์ตจริงจาก backtest engine
+**ไฟล์สำคัญ:** `backtest/engine.py`, `backtest/strategy.py`, `backtest/context.py`
 
-#### Phase 3 — Grok API + Semi-Auto
-เป้าหมาย: ให้ agent อภิปรายและตัดสินใจด้วย LLM + คนอนุมัติก่อน execute
+---
 
-- [ ] ผสาน **Grok 4.3 API** ให้ Portfolio Manager อภิปรายจาก report จริง (แทน rule-based)
-- [ ] เพิ่มปุ่ม **Approve / Reject** บน Dashboard (semi-auto mode)
-- [ ] บันทึกสถานะอนุมัติลง Decision Log (`approved: true/false`)
+### Phase 2 — ข้อมูลจริงให้ Agent ✅ (เสร็จ 2026-06-20)
 
-#### Phase 4 — ปรับปรุง Dashboard
+- [x] **Financial Analyst** — คะแนนจาก CSV (PE, FCF yield, margin ฯลฯ) ผ่าน `core/data/fundamentals.py`
+- [x] **Market Researcher** — RSI, SMA, trend จาก **yfinance** ผ่าน `core/data/market_data.py`
+- [x] **News Researcher** — headline sentiment จาก yfinance + momentum fallback ผ่าน `core/data/news.py`
+- [x] **Risk Manager** — น้ำหนักพอร์ต + drawdown จาก backtest engine ผ่าน `core/data/context_builder.py`
+
+**หมายเหตุ:** พอร์ตใน meeting ใช้ราคา CSV (สอดคล้อง backtest); yfinance ใช้เฉพาะ technical/news
+
+---
+
+### Phase 3 — LLM + Semi-Auto ✅ (เสร็จ 2026-06-20)
+
+- [x] Portfolio Manager อภิปรายด้วย LLM (fallback rule-based เมื่อไม่มี key)
+- [x] ปุ่ม **Approve / Reject** บน Dashboard (semi-auto mode)
+- [x] บันทึกสถานะอนุมัติลง Decision Log (`approved`, `approval_status`)
+
+**API อนุมัติ:**
+- `GET /api/meetings/pending`
+- `POST /api/meetings/{meeting_id}/approve` body: `{"approved": true|false}`
+
+---
+
+### Multi-Provider LLM ✅ (เสร็จ 2026-06-20)
+
+รองรับหลาย provider ผ่าน `core/llm/` — ไม่บังคับใช้ Grok อย่างเดียว
+
+| Provider | Env Key | Model เริ่มต้น |
+|----------|---------|----------------|
+| grok | `XAI_API_KEY` | grok-4.3 |
+| openai | `OPENAI_API_KEY` | gpt-4o |
+| deepseek | `DEEPSEEK_API_KEY` | deepseek-chat |
+| anthropic | `ANTHROPIC_API_KEY` | claude-sonnet-4-6 |
+| ollama | ไม่ต้องมี key | llama3.1 |
+
+- ไม่มี API key → ระบบรันได้, PM ใช้ rule-based
+- Auto-detect provider จาก key ที่มี (ถ้าไม่ตั้ง `LLM_PROVIDER`)
+- ดู `.env.example` สำหรับตัวอย่าง config ครบ
+
+---
+
+### Phase 4 — ปรับปรุง Dashboard ← ถัดไป
+
 เป้าหมาย: ทำให้ monitor และควบคุมระบบได้ครบจาก UI
 
-- [ ] กราฟ performance AI Agent vs Tech Titans
-- [ ] แสดงพอร์ตปัจจุบัน (holdings, cash, return)
-- [ ] ปุ่มรัน backtest ย้อนหลังจาก UI
+- [ ] กราฟ performance AI Agent vs Tech Titans (time series)
+- [ ] แสดงพอร์ตปัจจุบัน (holdings, cash, return) บน Dashboard
 - [ ] ปรับปรุง Pixel Office ให้สะท้อนสถานะ backtest/live ได้ชัดขึ้น
+- [x] ปุ่มรัน backtest ย้อนหลังจาก UI (แท็บ Backtest มีแล้ว)
 
 ### วิธีรัน server เมื่อกลับมาทำต่อ
 
@@ -224,7 +247,187 @@ python3 main.py
 ```
 
 ## สถานะล่าสุด (2026-06-20)
-- Multi-Agent + Dashboard พร้อมใช้งาน (placeholder data)
-- CSV Tech Titans 733 แถว พร้อมสำหรับ Phase 1 Backtest
-- Meeting transcript บันทึกครบ 4 phase (opening → report → deliberation → decision)
-- **ถัดไป: Phase 1 — Backtest Engine** (ดู Roadmap ด้านบน)
+
+### สรุปสั้น ๆ
+- ✅ Phase 1–3 + Multi-Provider LLM เสร็จแล้ว
+- ⏳ **ถัดไป: Phase 4** — กราฟ performance, holdings view, ปรับ Pixel Office
+- ระบบรันได้โดย **ไม่ต้องมี API key** (rule-based PM)
+- ใส่ LLM key แล้ว PM จะฉลาดขึ้น (เลือก provider ได้)
+
+### โครงสร้างโปรเจค (ปัจจุบัน)
+
+```
+AI Agent trading Office/
+├── agents/           # Agent 6 roles + portfolio_manager
+├── backtest/         # Backtest engine (Phase 1)
+├── core/
+│   ├── data/         # fundamentals, market_data, news, context_builder
+│   ├── llm/          # multi-provider LLM (grok, openai, deepseek, anthropic, ollama)
+│   ├── models.py, orchestrator.py, decision_log.py
+├── dashboard/        # React + Vite (แท็บ: Office, Meeting, Backtest, Agents, Logs)
+├── data/
+│   └── tech_titans_history_template.csv   # 733 แถว
+├── logs/decisions/   # JSON + Markdown meeting logs
+├── server/           # FastAPI + WebSocket
+├── main.py           # CLI meeting
+├── start.sh          # รัน API + Dashboard
+├── .env.example      # ตัวอย่าง config LLM
+├── AGENTS.md, TRADING-RULES.md, README.md
+└── PROGRESS-LOG.md   # ไฟล์นี้
+```
+
+### Dependencies
+
+```bash
+pip3 install -r requirements.txt   # fastapi, uvicorn, yfinance
+cd dashboard && npm install          # ครั้งแรกเท่านั้น
+```
+
+`requirements.txt`: fastapi, uvicorn, websockets, yfinance
+
+---
+
+## คู่มือใช้งานด่วน (Quick Reference)
+
+### คำสั่งสำหรับ AI Assistant (สำคัญ)
+
+> **ถ้าผู้ใช้พิมพ์ว่า `เริ่มโปรแกรม`** — ให้ assistant รันคำสั่งนี้เองทันที (ไม่ต้องบอกให้ user รัน):
+
+```bash
+lsof -ti:8080 | xargs kill -9 2>/dev/null; lsof -ti:5173 | xargs kill -9 2>/dev/null; cd "/Users/kaaimac/Desktop/AI Agent trading Office" && ./start.sh
+```
+
+รันใน background แล้วแจ้ง user ว่าเปิดได้ที่:
+- Dashboard: http://127.0.0.1:5173
+- API: http://127.0.0.1:8080
+
+> **ถ้าผู้ใช้พิมพ์ว่า `หยุดโปรแกรม`** — ให้ assistant รัน:
+
+```bash
+lsof -ti:8080 | xargs kill -9 2>/dev/null; lsof -ti:5173 | xargs kill -9 2>/dev/null
+```
+
+---
+
+### รันระบบ (ด้วยตัวเอง)
+
+```bash
+cd "/Users/kaaimac/Desktop/AI Agent trading Office"
+./start.sh
+```
+
+- Dashboard: http://127.0.0.1:5173
+- API: http://127.0.0.1:8080
+- อย่าปิด Terminal ที่รัน start.sh
+
+**ถ้า port ถูกใช้:**
+```bash
+lsof -ti:8080 | xargs kill -9 2>/dev/null
+lsof -ti:5173 | xargs kill -9 2>/dev/null
+```
+
+### รัน Backtest
+
+```bash
+python3 -m backtest              # default 6 เดือน
+python3 -m backtest --months 12
+```
+
+หรือ Dashboard → แท็บ **Backtest** → Run Backtest
+
+### รัน Meeting
+
+**ผ่าน Dashboard:** แท็บ Live Meeting → Run Weekly Meeting → Approve/Reject
+
+**ผ่าน Terminal:**
+```bash
+python3 main.py
+```
+
+### ตั้งค่า LLM (ไม่บังคับ)
+
+```bash
+cp .env.example .env
+# แก้ .env ใส่ provider + API key
+./start.sh   # restart
+```
+
+ตัวอย่าง DeepSeek:
+```env
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-xxxxxxxx
+```
+
+ตรวจสอบสถานะ: `curl http://127.0.0.1:8080/api/status`
+
+### API Endpoints สำคัญ
+
+| Method | Path | คำอธิบาย |
+|--------|------|----------|
+| GET | `/api/health` | health check |
+| GET | `/api/status` | LLM provider, semi-auto status |
+| GET | `/api/agents` | รายชื่อ agent |
+| POST | `/api/meetings/run` | รัน weekly meeting |
+| GET | `/api/meetings` | รายการ meeting log |
+| GET | `/api/meetings/pending` | meeting รออนุมัติ |
+| POST | `/api/meetings/{id}/approve` | อนุมัติ/ปฏิเสธ |
+| POST | `/api/backtest/run` | รัน backtest |
+| GET | `/api/backtest/latest` | ผล backtest ล่าสุด |
+| WS | `/ws` | Pixel Agents WebSocket |
+
+### Dashboard แท็บ
+
+| แท็บ | หน้าที่ |
+|------|--------|
+| Pixel Office | ออฟฟิศ pixel + meeting ย่อ |
+| Live Meeting | transcript + Approve/Reject |
+| Backtest | AI vs Tech Titans metrics |
+| Agents | รายละเอียด agent |
+| Decision Log | ประวัติ meeting JSON/MD |
+
+### Meeting Flow (4 phases)
+
+1. **Opening** — Portfolio Manager สรุปพอร์ต
+2. **Report** — Agent 5 ตัวส่งรายงาน (ข้อมูลจริง)
+3. **Deliberation** — PM สังเคราะห์ (LLM หรือ rule-based)
+4. **Decision** — PM เสนอ trades → รอ human Approve/Reject
+
+### กฎการเทรด (สรุป)
+
+ดูรายละเอียดใน `TRADING-RULES.md`
+
+- เงินทุน **305 USD** วันที่ 1 ของเดือน
+- AI Agent ปรับพอร์ตได้ **ทุกสัปดาห์** (Tech Titans ปรับเดือนละครั้ง)
+- ระหว่างเดือน ใช้เฉพาะเงินสด + เงินจากขาย
+- เทรดเฉพาะหุ้นเทค NYSE + Nasdaq, สูงสุด 15 ตัว
+- เป้าหมายแข่ง Tech Titans 6 เดือน
+
+### ข้อมูล Tech Titans CSV
+
+- ไฟล์: `data/tech_titans_history_template.csv`
+- 733 แถว, 49 เดือน (พ.ค. 2022 – พ.ค. 2026)
+- ~15 หุ้น/เดือน, 147 tickers รวม
+- คอลัมน์: PE, FCF yield, operating margin, market cap ฯลฯ
+
+### Troubleshooting
+
+| ปัญหา | แก้ไข |
+|-------|-------|
+| Port ถูกใช้ | kill 8080/5173 แล้ว `./start.sh` |
+| LLM OFF | ปกติ — ใส่ key ใน `.env` ถ้าต้องการ |
+| yfinance ช้า | ครั้งแรกดึงข้อมูล ~5–10 วินาที |
+| Meeting ไม่ขึ้น | ตรวจ WebSocket ที่ `/ws` |
+| Backtest ติดลบ | ปรับ strategy ใน `backtest/strategy.py` |
+
+---
+
+## บันทึกเพิ่มเติม
+
+- Git repo อยู่ในโปรเจคแล้ว (มี `.gitignore`)
+- Decision logs ถูก gitignore (`logs/decisions/*.json`) — เก็บ local
+- `.env` ถูก gitignore — อย่า commit API key
+
+### Session log
+
+- **2026-06-20** — หยุดโปรแกรมชั่วคราว (ปิด port 8080 + 5173) รอทำ Phase 4 ต่อ
+- **ถัดไป:** Phase 4 — กราฟ performance, holdings view, ปรับ Pixel Office

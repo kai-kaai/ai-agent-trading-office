@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AgentRoster } from "./components/AgentRoster";
+import { BacktestPanel } from "./components/BacktestPanel";
 import { DecisionLogList } from "./components/DecisionLogList";
 import { MeetingPanel } from "./components/MeetingPanel";
 import { PixelOffice } from "./components/PixelOffice";
@@ -7,7 +8,7 @@ import { usePixelAgentsWs } from "./hooks/usePixelAgentsWs";
 import type { AgentDesk } from "./types";
 import "./App.css";
 
-type Tab = "office" | "meetings" | "agents" | "logs";
+type Tab = "office" | "meetings" | "backtest" | "agents" | "logs";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("office");
@@ -18,9 +19,15 @@ export default function App() {
     transcript,
     meetingSummary,
     meetingRunning,
+    pendingMeeting,
+    llmEnabled,
+    llmProvider,
+    llmModel,
     runMeeting,
+    submitApproval,
     palettes,
   } = usePixelAgentsWs();
+  const [approvalBusy, setApprovalBusy] = useState(false);
 
   useEffect(() => {
     fetch("/api/agents")
@@ -32,6 +39,30 @@ export default function App() {
   const handleRunMeeting = useCallback(async () => {
     await runMeeting();
   }, [runMeeting]);
+
+  const handleApprove = useCallback(
+    async (meetingId: string) => {
+      setApprovalBusy(true);
+      try {
+        await submitApproval(meetingId, true);
+      } finally {
+        setApprovalBusy(false);
+      }
+    },
+    [submitApproval],
+  );
+
+  const handleReject = useCallback(
+    async (meetingId: string) => {
+      setApprovalBusy(true);
+      try {
+        await submitApproval(meetingId, false);
+      } finally {
+        setApprovalBusy(false);
+      }
+    },
+    [submitApproval],
+  );
 
   return (
     <div className="app">
@@ -54,6 +85,7 @@ export default function App() {
           [
             ["office", "Pixel Office"],
             ["meetings", "Live Meeting"],
+            ["backtest", "Backtest"],
             ["agents", "Agents"],
             ["logs", "Decision Log"],
           ] as const
@@ -78,6 +110,13 @@ export default function App() {
               meetingRunning={meetingRunning}
               onRunMeeting={handleRunMeeting}
               connected={connected}
+              pendingMeeting={pendingMeeting}
+              llmEnabled={llmEnabled}
+              llmProvider={llmProvider}
+              llmModel={llmModel}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              approvalBusy={approvalBusy}
             />
           </div>
         )}
@@ -89,9 +128,17 @@ export default function App() {
             meetingRunning={meetingRunning}
             onRunMeeting={handleRunMeeting}
             connected={connected}
+            pendingMeeting={pendingMeeting}
+            llmEnabled={llmEnabled}
+            llmProvider={llmProvider}
+            llmModel={llmModel}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            approvalBusy={approvalBusy}
           />
         )}
 
+        {tab === "backtest" && <BacktestPanel />}
         {tab === "agents" && <AgentRoster agents={agents} />}
         {tab === "logs" && <DecisionLogList />}
       </main>

@@ -1,4 +1,4 @@
-import type { TranscriptEntry } from "../types";
+import type { PendingMeeting, TranscriptEntry } from "../types";
 
 interface Props {
   transcript: TranscriptEntry[];
@@ -6,6 +6,13 @@ interface Props {
   meetingRunning: boolean;
   onRunMeeting: () => void;
   connected: boolean;
+  pendingMeeting?: PendingMeeting | null;
+  llmEnabled?: boolean;
+  llmProvider?: string;
+  llmModel?: string;
+  onApprove?: (meetingId: string) => void;
+  onReject?: (meetingId: string) => void;
+  approvalBusy?: boolean;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -21,23 +28,97 @@ export function MeetingPanel({
   meetingRunning,
   onRunMeeting,
   connected,
+  pendingMeeting,
+  llmEnabled = false,
+  llmProvider = "none",
+  llmModel = "",
+  onApprove,
+  onReject,
+  approvalBusy = false,
 }: Props) {
+  const showApproval =
+    pendingMeeting &&
+    pendingMeeting.approvalStatus === "pending" &&
+    onApprove &&
+    onReject;
+
   return (
     <section className="panel meeting-panel">
       <div className="panel-header">
         <h2>Live Meeting</h2>
-        <button
-          className="btn-primary"
-          onClick={onRunMeeting}
-          disabled={!connected || meetingRunning}
-        >
-          {meetingRunning ? "Meeting in progress…" : "Run Weekly Meeting"}
-        </button>
+        <div className="panel-header-actions">
+          <span className={`llm-badge ${llmEnabled ? "on" : "off"}`} title={llmModel}>
+            LLM {llmEnabled ? `${llmProvider}` : "OFF"}
+          </span>
+          <button
+            className="btn-primary"
+            onClick={onRunMeeting}
+            disabled={!connected || meetingRunning}
+          >
+            {meetingRunning ? "Meeting in progress…" : "Run Weekly Meeting"}
+          </button>
+        </div>
       </div>
 
       {meetingSummary && (
         <div className="decision-banner">
           <strong>Decision:</strong> {meetingSummary}
+        </div>
+      )}
+
+      {showApproval && (
+        <div className="approval-panel">
+          <div className="approval-header">
+            <h3>Semi-Auto — Awaiting Your Approval</h3>
+            <span className="approval-source">
+              Source: {pendingMeeting.decisionSource}
+            </span>
+          </div>
+          <p className="approval-summary">{pendingMeeting.summary}</p>
+
+          {pendingMeeting.trades.length > 0 ? (
+            <ul className="approval-trades">
+              {pendingMeeting.trades.map((trade) => (
+                <li key={`${trade.ticker}-${trade.action}`}>
+                  <strong>{trade.action.toUpperCase()}</strong> {trade.ticker}
+                  {trade.shares > 0 ? ` · ${trade.shares} shares` : ""}
+                  {trade.rationale && (
+                    <span className="trade-rationale"> — {trade.rationale}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">No trades proposed — HOLD current allocation.</p>
+          )}
+
+          <div className="approval-actions">
+            <button
+              className="btn-approve"
+              disabled={approvalBusy}
+              onClick={() => onApprove(pendingMeeting.meetingId)}
+            >
+              Approve
+            </button>
+            <button
+              className="btn-reject"
+              disabled={approvalBusy}
+              onClick={() => onReject(pendingMeeting.meetingId)}
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pendingMeeting && pendingMeeting.approvalStatus !== "pending" && (
+        <div
+          className={`approval-result ${
+            pendingMeeting.approvalStatus === "approved" ? "approved" : "rejected"
+          }`}
+        >
+          Decision {pendingMeeting.approvalStatus === "approved" ? "approved" : "rejected"}.
+          Logged to Decision Log.
         </div>
       )}
 

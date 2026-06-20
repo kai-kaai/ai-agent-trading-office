@@ -92,19 +92,28 @@ class RiskManager(BaseAgent):
                 "Rebalance should use only existing cash and sale proceeds."
             )
 
-        # Drawdown placeholder (requires historical NAV in backtest engine)
         drawdown = context.extra.get("current_drawdown", 0.0)
+        if isinstance(drawdown, (int, float)) and drawdown > 0:
+            key_points.append(f"Backtest drawdown from peak: {drawdown:.1%}.")
         if isinstance(drawdown, (int, float)) and drawdown > MAX_DRAWDOWN_WARNING:
             warnings.append(
                 f"Portfolio drawdown {drawdown:.1%} exceeds "
                 f"{MAX_DRAWDOWN_WARNING:.0%} warning threshold."
             )
 
+        backtest_nav = context.extra.get("backtest_final_nav")
+        if isinstance(backtest_nav, (int, float)):
+            key_points.append(f"Backtest final NAV reference: {backtest_nav:,.2f} USD.")
+
         risk_level = "elevated" if warnings else "within limits"
         summary = (
             f"Risk review: portfolio at {total_value:,.2f} USD, "
             f"{len(context.portfolio)} positions, risk level {risk_level}."
         )
+
+        data_source = "live_portfolio"
+        if context.extra.get("backtest_holdings"):
+            data_source = "backtest_engine"
 
         return self._build_report(
             summary,
@@ -114,6 +123,9 @@ class RiskManager(BaseAgent):
             metadata={
                 "cash_ratio": round(cash_ratio, 4),
                 "sector_weights": {k: round(v, 4) for k, v in sector_weights.items()},
+                "portfolio_weights": context.extra.get("portfolio_weights", {}),
+                "current_drawdown": drawdown,
+                "data_source": data_source,
                 "limits": {
                     "max_single_position": MAX_SINGLE_POSITION,
                     "max_sector_concentration": MAX_SECTOR_CONCENTRATION,
