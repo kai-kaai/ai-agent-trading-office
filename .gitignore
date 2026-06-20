@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+
+# Node / React
+dashboard/node_modules/
+dashboard/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs (generated at runtime)
+logs/decisions/*.json
+logs/decisions/*.md
+!logs/decisions/.gitkeep
+
+# Build cache
+dashboard/node_modules/.vite/
