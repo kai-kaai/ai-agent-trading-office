@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Any
 
@@ -49,7 +49,7 @@ class AgentReport:
     key_points: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
-    generated_at: datetime = field(default_factory=datetime.utcnow)
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -60,7 +60,7 @@ class AgentUtterance:
     role: str
     phase: MeetingPhase
     content: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -123,7 +123,7 @@ class PortfolioDecision:
     approved: bool = False
     deliberation: str | None = None
     decision_source: str = "rule_based"
-    decided_at: datetime = field(default_factory=datetime.utcnow)
+    decided_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -136,4 +136,4 @@ class MeetingRecord:
     utterances: list[AgentUtterance]
     meeting_summary: str
     decision: PortfolioDecision
-    recorded_at: datetime = field(default_factory=datetime.utcnow)
+    recorded_at: datetime = field(default_factory=lambda: datetime.now(UTC))

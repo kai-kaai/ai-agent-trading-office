@@ -1,53 +1,84 @@
-# AI Agent Trading Office - Agent Structure
+# AI Agent Trading Office — Architecture
 
-เอกสารนี้อธิบายโครงสร้างของทีม Agent ในโปรเจค
+ตลาด: **หุ้นเทค US** · Benchmark: **Tech Titans** · โหมด: **Semi-Auto**
 
-## หลักการออกแบบ
-- ใช้แนวคิด "AI Office" แบบมีแผนกและ role ชัดเจน
-- แต่ละ Agent มีหน้าที่เฉพาะเจาะจง
-- มี Portfolio Manager เป็นผู้ตัดสินใจหลัก
-- ทุกครั้งที่ปรับพอร์ตจะมีการ "ประชุม" กัน
+## Phase คืออะไร?
 
-## Agent Roles (Phase 1 - Backtest)
+| ชุด | ชื่อ | ใช้เมื่อ |
+|-----|------|---------|
+| **Build B1–B4** | ระบบเดิม (เสร็จแล้ว) | backtest, meeting 6 agents, dashboard |
+| **Arch A0–A6** | สถาปัตยกรรม 5 modules | Brain → Shield → CFO → Watchman → Auditor |
 
-### 1. Portfolio Manager (CEO)
-- รับผิดชอบการตัดสินใจสุดท้าย
-- เรียกประชุม agent อื่น ๆ
-- สรุปข้อมูลและออกคำสั่งปรับพอร์ต
-- รับผิดชอบ Decision Log
+รายละเอียดสถานะ: [PROGRESS-LOG.md](PROGRESS-LOG.md)
 
-### 2. Financial Analyst
-- วิเคราะห์งบการเงินของหุ้นที่สนใจ
-- ดู metric สำคัญ: EPS, Revenue growth, Debt ratio, Profit margin
-- ให้คะแนนพื้นฐานของแต่ละหุ้น
+## Pipeline (Arch — บังคับ)
 
-### 3. News Researcher
-- ค้นหาข่าวและข้อมูลล่าสุดของบริษัท
-- วิเคราะห์ sentiment จากข่าว
-- รายงานเหตุการณ์สำคัญที่อาจกระทบราคา
+```
+Scan/Setup → Brain → Shield → CFO → Watchman → (Auditor หลังปิดไม้)
+```
 
-### 4. Market Researcher
-- วิเคราะห์ราคาและ technical indicator
-- ดู trend, sector rotation, market condition โดยรวม
-- ประเมินจังหวะการเข้า/ออก
+**Gate:** ทุกสัญญาณต้องผ่าน **The Brain** ก่อนเสมอ
 
-### 5. Risk Manager
-- ควบคุมความเสี่ยงของพอร์ต
-- แนะนำ position sizing
-- ตรวจสอบ sector concentration และ drawdown
+## 5 Modules
 
-### 6. Backtester & Evaluator
-- รับผิดชอบการทดสอบย้อนหลัง
-- วัดผล performance เทียบกับ Tech Titans
-- วิเคราะห์ว่าการตัดสินใจแต่ละครั้งดีหรือไม่
+| Module | ชื่อ | หน้าที่ |
+|--------|------|--------|
+| `modules/brain/` | The Brain | AI Council + scanners + A+ Setup |
+| `modules/shield/` | The Shield | RRR, sector overlap, GO/PASS |
+| `modules/cfo/` | The CFO | shares จาก % risk, volatility |
+| `modules/watchman/` | The Watchman | trailing stop (paper → live) |
+| `modules/auditor/` | The Auditor | autopsy → backtest → sandbox → live |
 
-## กระบวนการทำงาน (Weekly Cycle)
-1. Portfolio Manager เรียกประชุม
-2. แต่ละ Agent ส่งรายงาน
-3. ประชุมและอภิปราย
-4. Portfolio Manager ตัดสินใจ
-5. บันทึกเหตุผลลง Decision Log
-6. สรุปผลการปรับพอร์ต
+## AI Council (Arch A1 — Brain)
 
----
-*เอกสารนี้จะถูกปรับปรุงเมื่อมีการเพิ่ม agent หรือเปลี่ยน role*
+| สมาชิก | บทบาท |
+|--------|--------|
+| Bear | มองแง่ลบ |
+| Bull | มองแง่บวก |
+| Risk Chair | บริหารความเสี่ยง — **VETO ได้** |
+
+**ผ่านสภา:** APPROVE ≥ 2/3 และ Risk Chair ไม่ veto
+
+## Scanners (Arch A1)
+
+| แนวคิด | หุ้น US | น้ำหนัก |
+|--------|---------|--------|
+| Fundamental | Tech Titans CSV | 25% |
+| CSM → Sector | เทียบ QQQ | 20% |
+| SMC → Structure | SMA, RSI, 52w | 30% |
+| News | yfinance | 25% |
+
+## Legacy Build (B1–B4)
+
+Meeting รายสัปดาห์: `agents/` + `core/orchestrator.py` — ยังใช้ได้
+
+| Agent เดิม | → Module ใหม่ |
+|------------|--------------|
+| Financial Analyst | Brain |
+| Market / News Researcher | Brain |
+| Risk Manager | Brain + CFO + Shield |
+| Portfolio Manager | Shield |
+| Backtester | Auditor |
+
+## Arch Roadmap
+
+| Arch | สถานะ | เนื้อหา |
+|------|--------|--------|
+| A0 Foundation | ✅ | models, pipeline, docs |
+| A1 Brain | ✅ | Council + scanners + API |
+| A2 Shield | ✅ | RRR, overlap |
+| A3 CFO | ✅ | sizing |
+| A4 Watchman | ✅ | paper, trailing |
+| A5 Auditor | ✅ | autopsy loop |
+| A6 Dashboard | ⏳ | 5-module UI |
+
+## โค้ดหลัก
+
+```
+modules/              # Arch A0+
+  brain/              # Arch A1 ✅
+  pipeline.py
+agents/               # Build B1–B3 legacy
+backtest/             # Build B1
+server/app.py         # /api/council/evaluate, /api/pipeline/run
+```

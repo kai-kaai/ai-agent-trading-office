@@ -2,27 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 
 from backtest.benchmark import run_tech_titans_benchmark
+from backtest.dates import iter_weekly_dates
 from backtest.data_loader import DEFAULT_CSV, TechTitansData
 from backtest.models import BacktestComparison, BacktestResult, NavSnapshot
 from backtest.portfolio import Portfolio
 from backtest.strategy import MONTHLY_INJECTION, apply_weekly_strategy
 
 DEFAULT_MONTHS = 6
-
-
-def iter_weekly_dates(start: date, end: date) -> list[date]:
-    """Generate weekly rebalance dates from start through end."""
-    cursor = start
-    dates: list[date] = []
-    while cursor <= end:
-        dates.append(cursor)
-        cursor += timedelta(days=7)
-    if not dates or dates[-1] < end:
-        dates.append(end)
-    return dates
 
 
 class BacktestEngine:

@@ -1,0 +1,27 @@
+{
+  "tech_titans": {
+    "cash": 10000.0,
+    "holdings": {},
+    "history": [
+      {
+        "date": "2026-06-30T08:03:31.278828+00:00",
+        "nav": 10000.0,
+        "cash": 10000.0,
+        "holdings": {}
+      }
+    ]
+  },
+  "ai_agent": {
+    "cash": 10000.0,
+    "holdings": {},
+    "history": [
+      {
+        "date": "2026-06-30T08:03:31.278828+00:00",
+        "nav": 10000.0,
+        "cash": 10000.0,
+        "holdings": {}
+      }
+    ]
+  },
+  "transactions": []
+}

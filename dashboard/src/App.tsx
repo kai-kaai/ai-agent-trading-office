@@ -4,11 +4,15 @@ import { BacktestPanel } from "./components/BacktestPanel";
 import { DecisionLogList } from "./components/DecisionLogList";
 import { MeetingPanel } from "./components/MeetingPanel";
 import { PixelOffice } from "./components/PixelOffice";
+import { PipelinePanel } from "./components/PipelinePanel";
+import { PaperPortfolioPanel } from "./components/PaperPortfolioPanel";
 import { usePixelAgentsWs } from "./hooks/usePixelAgentsWs";
 import type { AgentDesk } from "./types";
 import "./App.css";
 
-type Tab = "office" | "meetings" | "backtest" | "agents" | "logs";
+
+
+type Tab = "office" | "pipeline" | "portfolio" | "meetings" | "backtest" | "agents" | "logs";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("office");
@@ -84,6 +88,8 @@ export default function App() {
         {(
           [
             ["office", "Pixel Office"],
+            ["pipeline", "Trading Pipeline"],
+            ["portfolio", "Paper Portfolio"],
             ["meetings", "Live Meeting"],
             ["backtest", "Backtest"],
             ["agents", "Agents"],
@@ -103,7 +109,14 @@ export default function App() {
       <main className="app-main">
         {tab === "office" && (
           <div className="office-view">
-            <PixelOffice agents={agents} agentStates={agentStates} palettes={palettes} />
+            <PixelOffice
+              agents={agents}
+              agentStates={agentStates}
+              palettes={palettes}
+              connected={connected}
+              meetingRunning={meetingRunning}
+              pendingMeeting={pendingMeeting}
+            />
             <MeetingPanel
               transcript={transcript.slice(-3)}
               meetingSummary={meetingSummary}
@@ -137,6 +150,9 @@ export default function App() {
             approvalBusy={approvalBusy}
           />
         )}
+
+        {tab === "pipeline" && <PipelinePanel />}
+        {tab === "portfolio" && <PaperPortfolioPanel />}
 
         {tab === "backtest" && <BacktestPanel />}
         {tab === "agents" && <AgentRoster agents={agents} />}

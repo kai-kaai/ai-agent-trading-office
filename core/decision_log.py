@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +45,7 @@ class DecisionLog:
         Returns:
             Tuple of (json_path, markdown_path).
         """
+        self._entries = self._load_index()
         timestamp = meeting_record.recorded_at.strftime("%Y%m%d_%H%M%S")
         base_name = f"{meeting_record.meeting_date.isoformat()}_{timestamp}"
         json_path = self.log_dir / f"{base_name}.json"
@@ -148,6 +149,7 @@ class DecisionLog:
 
     def get_by_date(self, meeting_date: date) -> list[dict[str, Any]]:
         """Return all meeting records for a given date."""
+        self._entries = self._load_index()
         target = meeting_date.isoformat()
         results: list[dict[str, Any]] = []
         for entry in self._entries:
@@ -157,6 +159,7 @@ class DecisionLog:
 
     def get_all(self) -> list[dict[str, Any]]:
         """Return all indexed meetings, newest first."""
+        self._entries = self._load_index()
         return sorted(
             self._entries,
             key=lambda e: e.get("recorded_at", ""),
@@ -169,6 +172,7 @@ class DecisionLog:
 
     def update_approval(self, meeting_id: str, approved: bool) -> dict[str, Any] | None:
         """Set approval status on an existing meeting and refresh its log files."""
+        self._entries = self._load_index()
         for index, entry in enumerate(self._entries):
             if entry.get("meeting_id") != meeting_id:
                 continue
@@ -177,7 +181,7 @@ class DecisionLog:
             data = json.loads(json_path.read_text(encoding="utf-8"))
             data["decision"]["approved"] = approved
             data["approval_status"] = "approved" if approved else "rejected"
-            data["approved_at"] = datetime.utcnow().isoformat()
+            data["approved_at"] = datetime.now(UTC).isoformat()
             json_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
                 encoding="utf-8",
