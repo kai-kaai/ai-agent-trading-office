@@ -11,7 +11,14 @@ try:
 except ImportError:
     yf = None
 
-PORTFOLIO_FILE = Path(__file__).parent.parent / "logs" / "paper_portfolio.json"
+import sys
+import tempfile
+
+if "unittest" in sys.modules or "pytest" in sys.modules:
+    PORTFOLIO_FILE = Path(tempfile.gettempdir()) / "test_paper_portfolio.json"
+else:
+    PORTFOLIO_FILE = Path(__file__).parent.parent / "logs" / "paper_portfolio.json"
+
 INITIAL_CASH = 10000.0
 
 
