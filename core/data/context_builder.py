@@ -40,9 +40,16 @@ def build_meeting_context(meeting_date: date | None = None) -> MeetingContext:
     month_date = data.month_for(meeting_date)
     benchmark_holdings = data.tickers(month_date)
 
-    holdings = comparison.agent.final_holdings
-    latest_snap = comparison.agent.nav_history[-1] if comparison.agent.nav_history else None
-    cash_balance = latest_snap.cash if latest_snap else 0.0
+    try:
+        from modules.paper_portfolio import PaperPortfolioManager
+        mgr = PaperPortfolioManager()
+        portfolio_data = mgr.data["ai_agent"]
+        holdings = portfolio_data.get("holdings", {})
+        cash_balance = portfolio_data.get("cash", 10000.0)
+    except Exception:
+        holdings = comparison.agent.final_holdings
+        latest_snap = comparison.agent.nav_history[-1] if comparison.agent.nav_history else None
+        cash_balance = latest_snap.cash if latest_snap else 0.0
 
     portfolio: list[PortfolioPosition] = []
     live_prices: dict[str, float] = {}
@@ -52,9 +59,10 @@ def build_meeting_context(meeting_date: date | None = None) -> MeetingContext:
         live_price = market.get_price(ticker)
         if live_price is not None:
             live_prices[ticker] = live_price
-        # Use CSV proxy for portfolio weights (consistent with backtest engine).
-        current_price = csv_price
-        avg_cost = csv_price
+            current_price = live_price
+        else:
+            current_price = csv_price
+        avg_cost = current_price
 
         portfolio.append(
             PortfolioPosition(

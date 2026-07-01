@@ -1,27 +1,220 @@
 {
   "tech_titans": {
-    "cash": 10000.0,
-    "holdings": {},
+    "cash": 0.0,
+    "holdings": {
+      "AMD": 1.222,
+      "INTC": 5.0509,
+      "ON": 7.51,
+      "ORCL": 4.5274,
+      "POWI": 8.3752,
+      "QCOM": 3.5275,
+      "SWKS": 9.9133,
+      "TXN": 2.3291,
+      "MRVL": 2.3916,
+      "HIMX": 45.819,
+      "NTAP": 4.3186,
+      "ALGM": 10.0857,
+      "KD": 60.0601,
+      "ARM": 1.906,
+      "Q": 4.2181
+    },
     "history": [
       {
         "date": "2026-06-30T08:03:31.278828+00:00",
         "nav": 10000.0,
         "cash": 10000.0,
         "holdings": {}
+      },
+      {
+        "date": "2026-07-01T13:13:04.071821+00:00",
+        "nav": 9999.98,
+        "cash": 0.0,
+        "holdings": {
+          "AMD": 1.222,
+          "INTC": 5.0509,
+          "ON": 7.51,
+          "ORCL": 4.5274,
+          "POWI": 8.3752,
+          "QCOM": 3.5275,
+          "SWKS": 9.9133,
+          "TXN": 2.3291,
+          "MRVL": 2.3916,
+          "HIMX": 45.819,
+          "NTAP": 4.3186,
+          "ALGM": 10.0857,
+          "KD": 60.0601,
+          "ARM": 1.906,
+          "Q": 4.2181
+        }
       }
     ]
   },
   "ai_agent": {
-    "cash": 10000.0,
-    "holdings": {},
+    "cash": 9718.83,
+    "holdings": {
+      "AAPL": 1.0
+    },
     "history": [
       {
         "date": "2026-06-30T08:03:31.278828+00:00",
         "nav": 10000.0,
         "cash": 10000.0,
         "holdings": {}
+      },
+      {
+        "date": "2026-07-01T13:23:02.814486+00:00",
+        "nav": 10000.0,
+        "cash": 9718.83,
+        "holdings": {
+          "AAPL": 1.0
+        }
       }
     ]
   },
-  "transactions": []
+  "transactions": [
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "AMD",
+      "action": "buy",
+      "shares": 1.222,
+      "price": 545.57,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "INTC",
+      "action": "buy",
+      "shares": 5.0509,
+      "price": 131.99,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "ON",
+      "action": "buy",
+      "shares": 7.51,
+      "price": 88.77,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "ORCL",
+      "action": "buy",
+      "shares": 4.5274,
+      "price": 147.25,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "POWI",
+      "action": "buy",
+      "shares": 8.3752,
+      "price": 79.6,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "QCOM",
+      "action": "buy",
+      "shares": 3.5275,
+      "price": 188.99,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "SWKS",
+      "action": "buy",
+      "shares": 9.9133,
+      "price": 67.25,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "TXN",
+      "action": "buy",
+      "shares": 2.3291,
+      "price": 286.23,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "MRVL",
+      "action": "buy",
+      "shares": 2.3916,
+      "price": 278.75,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "HIMX",
+      "action": "buy",
+      "shares": 45.819,
+      "price": 14.55,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "NTAP",
+      "action": "buy",
+      "shares": 4.3186,
+      "price": 154.37,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "ALGM",
+      "action": "buy",
+      "shares": 10.0857,
+      "price": 66.1,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "KD",
+      "action": "buy",
+      "shares": 60.0601,
+      "price": 11.1,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "ARM",
+      "action": "buy",
+      "shares": 1.906,
+      "price": 349.77,
+      "value": 666.67
+    },
+    {
+      "portfolio": "tech_titans",
+      "timestamp": "2026-07-01T13:13:00.618196+00:00",
+      "ticker": "Q",
+      "action": "buy",
+      "shares": 4.2181,
+      "price": 158.05,
+      "value": 666.67
+    },
+    {
+      "portfolio": "ai_agent",
+      "timestamp": "2026-07-01T13:23:01.816934+00:00",
+      "ticker": "AAPL",
+      "action": "buy",
+      "shares": 1.0,
+      "price": 281.17,
+      "value": 281.17
+    }
+  ]
 }

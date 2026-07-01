@@ -356,72 +356,110 @@ class PaperPortfolioManager:
         current_holdings = portfolio["holdings"]
         current_cash = portfolio["cash"]
 
+        # 1. Separate into sell, explicit buy, and empty buy trades
+        sell_trades = []
+        explicit_buys = []
+        empty_buys = []
+
         for trade in trades:
             ticker = trade["ticker"].upper().strip()
             action = trade["action"].lower().strip()
             shares = float(trade.get("shares") or 0.0)
-            if shares <= 0:
-                continue
 
+            if action == "sell":
+                sell_trades.append((ticker, shares))
+            elif action == "buy":
+                if shares > 0.0:
+                    explicit_buys.append((ticker, shares))
+                else:
+                    empty_buys.append(ticker)
+
+        # 2. Execute all sell trades first to free up cash
+        for ticker, shares in sell_trades:
             try:
                 open_price = get_open_price(ticker)
             except Exception:
                 open_price = 100.0  # fallback
+            
+            current_shares = current_holdings.get(ticker, 0.0)
+            sell_shares = min(shares, current_shares)
+            if sell_shares > 0.0001:
+                sell_val = sell_shares * open_price
+                current_cash += sell_val
+                current_holdings[ticker] = current_shares - sell_shares
+                if current_holdings[ticker] < 0.0001:
+                    del current_holdings[ticker]
 
+                self.data["transactions"].append(
+                    {
+                        "portfolio": portfolio_key,
+                        "timestamp": now_str,
+                        "ticker": ticker,
+                        "action": "sell",
+                        "shares": round(sell_shares, 4),
+                        "price": round(open_price, 4),
+                        "value": round(sell_val, 2),
+                    }
+                )
+
+        # 3. Handle explicit buy trades
+        buy_orders = []  # list of (ticker, shares, open_price)
+        explicit_buy_cost = 0.0
+
+        for ticker, shares in explicit_buys:
+            try:
+                open_price = get_open_price(ticker)
+            except Exception:
+                open_price = 100.0
+            explicit_buy_cost += shares * open_price
+            buy_orders.append((ticker, shares, open_price))
+
+        # 4. Handle empty buy trades (allocate remaining cash equally)
+        if empty_buys:
+            remaining_cash = max(0.0, current_cash - explicit_buy_cost)
+            allocation_per_buy = remaining_cash / len(empty_buys)
+            for ticker in empty_buys:
+                try:
+                    open_price = get_open_price(ticker)
+                except Exception:
+                    open_price = 100.0
+                shares = allocation_per_buy / open_price
+                if shares > 0.0001:
+                    buy_orders.append((ticker, shares, open_price))
+
+        # 5. Execute all buy orders
+        for ticker, shares, open_price in buy_orders:
             trade_value = shares * open_price
-
-            if action == "buy":
-                if current_cash >= trade_value:
-                    current_cash -= trade_value
-                    current_holdings[ticker] = current_holdings.get(ticker, 0.0) + shares
+            if current_cash >= trade_value:
+                current_cash -= trade_value
+                current_holdings[ticker] = current_holdings.get(ticker, 0.0) + shares
+                self.data["transactions"].append(
+                    {
+                        "portfolio": portfolio_key,
+                        "timestamp": now_str,
+                        "ticker": ticker,
+                        "action": "buy",
+                        "shares": round(shares, 4),
+                        "price": round(open_price, 4),
+                        "value": round(trade_value, 2),
+                    }
+                )
+            else:
+                # Buy as much as cash allows
+                max_shares = current_cash / open_price
+                if max_shares > 0.0001:
+                    buy_val = max_shares * open_price
+                    current_cash -= buy_val
+                    current_holdings[ticker] = current_holdings.get(ticker, 0.0) + max_shares
                     self.data["transactions"].append(
                         {
                             "portfolio": portfolio_key,
                             "timestamp": now_str,
                             "ticker": ticker,
                             "action": "buy",
-                            "shares": round(shares, 4),
+                            "shares": round(max_shares, 4),
                             "price": round(open_price, 4),
-                            "value": round(trade_value, 2),
-                        }
-                    )
-                else:
-                    # Buy as much as cash allows
-                    max_shares = current_cash / open_price
-                    if max_shares > 0.0001:
-                        buy_val = max_shares * open_price
-                        current_cash -= buy_val
-                        current_holdings[ticker] = current_holdings.get(ticker, 0.0) + max_shares
-                        self.data["transactions"].append(
-                            {
-                                "portfolio": portfolio_key,
-                                "timestamp": now_str,
-                                "ticker": ticker,
-                                "action": "buy",
-                                "shares": round(max_shares, 4),
-                                "price": round(open_price, 4),
-                                "value": round(buy_val, 2),
-                            }
-                        )
-            elif action == "sell":
-                current_shares = current_holdings.get(ticker, 0.0)
-                sell_shares = min(shares, current_shares)
-                if sell_shares > 0.0001:
-                    sell_val = sell_shares * open_price
-                    current_cash += sell_val
-                    current_holdings[ticker] = current_shares - sell_shares
-                    if current_holdings[ticker] < 0.0001:
-                        del current_holdings[ticker]
-
-                    self.data["transactions"].append(
-                        {
-                            "portfolio": portfolio_key,
-                            "timestamp": now_str,
-                            "ticker": ticker,
-                            "action": "sell",
-                            "shares": round(sell_shares, 4),
-                            "price": round(open_price, 4),
-                            "value": round(sell_val, 2),
+                            "value": round(buy_val, 2),
                         }
                     )
 
