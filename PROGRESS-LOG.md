@@ -120,6 +120,7 @@ lsof -ti:8080 | xargs kill -9 2>/dev/null; lsof -ti:5173 | xargs kill -9 2>/dev/
 
 ### Changelog
 
+- **2026-07-01** — Bugfix (Rebalance): Fixed weekly meeting context to read current holdings and cash from the live paper portfolio instead of backtest results, and added equal-weight sizing fallback for rule-based BUY trades (shares=0.0) in the paper portfolio execution.
 - **2026-06-25** — Arch A6 Rebalance Trigger & Paper Portfolio: Integrated "Initiate AI Agent Rebalance Meeting" button, loading/progress visual states, and pending rebalance cards to automatically execute approved trades at live Market Open prices via yfinance.
 - **2026-06-25** — Arch A6 Dashboard: 5-module UI visualization with interactive active position trailing stops simulator, real scanners breakdown, and autopsy reviews
 - **2026-06-25** — Arch A5 Auditor: rich autopsy + auto lessons, r-multiple, strategy promotion loop (CANDIDATE→LIVE), pipeline hook
