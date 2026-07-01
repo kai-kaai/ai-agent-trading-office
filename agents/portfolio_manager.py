@@ -259,7 +259,7 @@ class PortfolioManager(BaseAgent):
                         ),
                     )
                 )
-            elif ticker not in held_tickers and avg_score >= 75:
+            elif ticker not in held_tickers and avg_score >= 60:
                 trades.append(
                     TradeAction(
                         ticker=ticker,
